@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#007D80">
+<title>MTR 下一班車 Next Train — 港鐵實時到站時間（免安裝 App）</title>
+<meta name="description" content="免費網頁即時查詢港鐵下一班車：揀線路、揀車站，兩個方向嘅班次、月台同到站時間一目了然。Live MTR next-train arrival times for all 10 lines — free in your browser, no app install. Data from data.gov.hk.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://samuelchanx.github.io/mtr-next-train/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MTR 下一班車 · MTR Next Train">
+<meta property="og:title" content="MTR 下一班車 Next Train — 港鐵實時到站時間（免安裝 App）">
+<meta property="og:description" content="揀線路 → 揀車站 → 即睇兩個方向嘅下一班車。Live MTR arrivals, every line and station, no app needed.">
+<meta property="og:url" content="https://samuelchanx.github.io/mtr-next-train/">
+<meta property="og:locale" content="zh_HK">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="MTR 下一班車 Next Train — 港鐵實時到站（免安裝 App）">
+<meta name="twitter:description" content="Live MTR next-train arrivals for every line and station, right in your browser.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"MTR 下一班車 · MTR Next Train","alternateName":"港鐵實時班次查詢","url":"https://samuelchanx.github.io/mtr-next-train/","applicationCategory":"TravelApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript","inLanguage":["zh-Hant","en"],"description":"Live MTR next-train arrival times for all MTR lines and stations in the browser, no app install required.","offers":{"@type":"Offer","price":"0","priceCurrency":"HKD"},"featureList":["Real-time next train arrivals","All 10 MTR lines","Both directions and all platforms","Auto refresh","Traditional Chinese and English"]}
+</script>
+<script src="data.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --ink: #1c2430; --muted: #66707d;
+    --line: #e3e8ee; --accent: #007D80; --danger: #c62828; --warn-bg: #fff7e0;
+    --warn-ink: #8a6100; --urgent: #e53935;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --card: #1b222c; --ink: #e8edf3; --muted: #93a0af;
+      --line: #2a3441; --warn-bg: #3a2f10; --warn-ink: #ffd54f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 16px 14px 40px; }
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  h1 { font-size: 21px; margin: 0; letter-spacing: .5px; }
+  h1 small { font-size: 12.5px; color: var(--muted); font-weight: 500; margin-left: 6px; }
+  #clock { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
+  .step { margin-top: 18px; }
+  .step-label { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: .3px; }
+  #lineChips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px;
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 999px;
+    font-size: 14.5px; color: var(--ink); cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .chip[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); font-weight: 600; }
+  #stationGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  .stn {
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 9px 6px; text-align: center; cursor: pointer; color: var(--ink);
+  }
+  .stn .tc { font-size: 15px; font-weight: 600; }
+  .stn .en { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .stn[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  /* result */
+  #result { margin-top: 22px; }
+  .station-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .line-badge {
+    color: #fff; font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .station-title { font-size: 22px; font-weight: 700; }
+  .station-title .en { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 6px; }
+  #xfer { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .xfer-chip {
+    font-size: 12px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    background: var(--card); border: 1px solid var(--line); color: var(--muted);
+  }
+  .meta-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  #dataTime { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #refreshBtn {
+    font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+    background: var(--card); color: var(--ink); border: 1.5px solid var(--line); font-variant-numeric: tabular-nums;
+  }
+  #refreshBtn:disabled { opacity: .5; cursor: default; }
+  #banner { display: none; margin-top: 10px; background: var(--warn-bg); color: var(--warn-ink);
+    border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  #banner a { color: inherit; }
+  #error { display: none; margin-top: 10px; color: var(--danger); font-size: 14px; }
+  .dirs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  @media (max-width: 560px) { .dirs { grid-template-columns: 1fr; } }
+  .dir-card { background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .dir-head { padding: 10px 14px 8px; border-bottom: 1px solid var(--line); }
+  .dir-title { font-size: 15.5px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+  .dir-arrow { font-size: 13px; color: #fff; background: var(--accent); border-radius: 6px; padding: 1px 6px; }
+  .dir-dests { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .train { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .train:last-child { border-bottom: none; }
+  .ttnt { min-width: 74px; text-align: center; font-weight: 800; font-size: 20px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .ttnt small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); }
+  .ttnt.urgent { color: var(--urgent); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+  .t-main { flex: 1; min-width: 0; }
+  .t-dest { font-size: 15px; font-weight: 600; }
+  .t-dest .en { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 5px; }
+  .t-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .plat {
+    flex: none; font-size: 12px; font-weight: 700; color: var(--muted);
+    border: 1.5px solid var(--line); border-radius: 8px; padding: 3px 8px; white-space: nowrap;
+  }
+  .train.invalid { opacity: .45; }
+  .empty { padding: 18px 14px; color: var(--muted); font-size: 14px; text-align: center; }
+  /* about / SEO */
+  .about { margin-top: 26px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 13.5px; line-height: 1.75; color: var(--muted); }
+  .about h2 { font-size: 15.5px; color: var(--ink); margin: 0 0 6px; }
+  .about a { color: var(--accent); }
+  .linedir { margin-top: 8px; }
+  .linedir details { border-top: 1px solid var(--line); padding: 6px 0; }
+  .linedir summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  .linedir p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.7; }
+  .disclaimer { margin-top: 12px; font-size: 11.5px; }
+  footer { margin-top: 26px; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>🚇 MTR 下一班車 <small>Next Train · 港鐵實時到站</small></h1>
+    <span id="clock"></span>
+  </header>
+
+  <section class="step">
+    <div class="step-label">1 · 揀線路</div>
+    <div id="lineChips"></div>
+  </section>
+
+  <section class="step" id="stepStation" hidden>
+    <div class="step-label">2 · 揀車站</div>
+    <div id="stationGrid"></div>
+  </section>
+
+  <section id="result" hidden>
+    <div class="station-head">
+      <span class="line-badge" id="lineBadge"></span>
+      <span class="station-title" id="stnTitle"></span>
+      <span id="xfer"></span>
+    </div>
+    <div class="meta-row">
+      <span id="dataTime"></span>
+      <button id="refreshBtn" type="button">🔄 更新</button>
+    </div>
+    <div id="banner"></div>
+    <div id="error"></div>
+    <div class="dirs" id="dirs"></div>
+  </section>
+
+  <section class="about">
+    <h2>港鐵下一班車 · 免安裝網頁版</h2>
+    <p>免費、免註冊、免安裝 App：揀線路 → 揀車站 → 即時睇到兩個方向嘅下一班車，連月台同到站時間。資料來自
+    <a href="https://data.gov.hk/tc-data/dataset/mtr-data2-nexttrain-data" rel="noopener">data.gov.hk「MTR Next Train」開放數據</a>，每 30 秒自動更新，涵蓋全部 10 條港鐵線：
+    機場快線、東涌線、屯馬線、將軍澳線、東鐵線、南港島線、荃灣線、港島線、觀塘線、迪士尼線。逐條線嘅車站目錄喺下面。</p>
+    <div id="lineDir" class="linedir"></div>
+    <p class="disclaimer">本網站與港鐵公司（MTR Corporation Limited）並無任何關聯；班次資料僅供參考，請以車站現場資訊同港鐵官方公佈為準。<br>
+    Not affiliated with MTR Corporation. Train times are indicative only — always follow official MTR announcements and station displays.</p>
+  </section>
+
+  <footer>
+    自動每 30 秒更新 · 資料來源：
+    <a href="https://data.gov.hk/tc-data/dataset/mtr-data2-nexttrain-data" target="_blank" rel="noopener">data.gov.hk — MTR Next Train</a>（資料僅供參考）
+    · <a href="https://github.com/samuelchanx/mtr-next-train" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const REFRESH_SECS = 30;
+  const API = "https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php";
+  const state = { line: null, sta: null, busy: false, left: REFRESH_SECS };
+
+  const lineByCode = Object.fromEntries(MTR_LINES.map(l => [l.code, l]));
+  const stationByCode = {}; // code -> {lineCode, st} first occurrence per line
+  for (const [lc, arr] of Object.entries(MTR_STATIONS)) for (const st of arr) (stationByCode[lc] ||= {})[st.c] = st;
+
+  function fmtClock(d) {
+    return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, "0")).join(":");
+  }
+  function hhmm(s) { return s ? s.slice(11, 16) : ""; }
+
+  function destName(code) {
+    const n = MTR_NAMES[code];
+    return n ? n.tc : code;
+  }
+  function destNameEn(code) {
+    const n = MTR_NAMES[code];
+    return n ? n.en : "";
+  }
+
+  /* ---------- rendering ---------- */
+  function renderLines() {
+    const box = $("#lineChips");
+    box.innerHTML = "";
+    for (const l of MTR_LINES) {
+      const b = document.createElement("button");
+      b.className = "chip"; b.type = "button";
+      b.setAttribute("aria-pressed", String(state.line === l.code));
+      b.innerHTML = `<span class="dot" style="background:${l.color}"></span>${l.tc}`;
+      b.onclick = () => selectLine(l.code);
+      box.appendChild(b);
+    }
+  }
+
+  function renderStations() {
+    const sec = $("#stepStation"), grid = $("#stationGrid");
+    if (!state.line) { sec.hidden = true; return; }
+    sec.hidden = false;
+    grid.innerHTML = "";
+    for (const st of MTR_STATIONS[state.line]) {
+      const b = document.createElement("button");
+      b.className = "stn"; b.type = "button";
+      b.setAttribute("aria-pressed", String(state.sta === st.c));
+      b.innerHTML = `<div class="tc">${st.tc}</div><div class="en">${st.en}</div>`;
+      b.onclick = () => selectStation(st.c);
+      grid.appendChild(b);
+    }
+  }
+
+  function renderHeader() {
+    const l = lineByCode[state.line], s = stationByCode[state.line]?.[state.sta];
+    $("#lineBadge").textContent = l.tc;
+    $("#lineBadge").style.background = l.color;
+    $("#stnTitle").innerHTML = `${s.tc}<span class="en">${s.en}</span>`;
+    const others = MTR_LINES.filter(x => x.code !== state.line && stationByCode[x.code]?.[state.sta]);
+    const xf = $("#xfer");
+    xf.innerHTML = "";
+    for (const o of others) {
+      const b = document.createElement("button");
+      b.className = "xfer-chip"; b.type = "button";
+      b.textContent = `↔ 轉乘 ${o.tc}`;
+      b.onclick = () => selectLine(o.code);
+      xf.appendChild(b);
+    }
+  }
+
+  function trainRow(t, color) {
+    const n = parseInt(t.ttnt, 10);
+    const valid = t.valid === "Y";
+    const dest = destName(t.dest), destEn = destNameEn(t.dest);
+    const ttntHtml = Number.isFinite(n)
+      ? (n === 0
+          ? `<div class="ttnt urgent">到站</div>`
+          : `<div class="ttnt" style="color:${color}">${n}<small>分鐘後</small></div>`)
+      : `<div class="ttnt" style="color:${color}">—</div>`;
+    const first = t.seq === "1" ? " · 下一班" : "";
+    return `<div class="train${valid ? "" : " invalid"}">
+      ${ttntHtml}
+      <div class="t-main">
+        <div class="t-dest">往 ${dest}<span class="en">${destEn}</span></div>
+        <div class="t-sub">${hhmm(t.time)} 到站${first}${valid ? "" : " · 此班次資料暫停"}</div>
+      </div>
+      <span class="plat">月台 ${t.plat}</span>
+    </div>`;
+  }
+
+  function renderTrains(node) {
+    const box = $("#dirs");
+    box.innerHTML = "";
+    const defs = [
+      { key: "UP", arrow: "▲", term: MTR_TERMINI[state.line]?.UP },
+      { key: "DOWN", arrow: "▼", term: MTR_TERMINI[state.line]?.DOWN },
+    ];
+    let any = false;
+    for (const d of defs) {
+      const trains = (node?.[d.key] || []).slice()
+        .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      any = any || trains.length > 0;
+      const dests = [...new Set(trains.map(t => t.dest))];
+      const sameAsTerm = d.term && dests.length === 1 && dests[0] === d.term.c;
+      const destLine = !dests.length || sameAsTerm ? ""
+        : dests.map(destName).join("／") + (d.term ? `（總站 ${destName(d.term.c)}）` : "");
+      const card = document.createElement("div");
+      card.className = "dir-card";
+      card.innerHTML = `
+        <div class="dir-head">
+          <div class="dir-title"><span class="dir-arrow">${d.arrow}</span>往 ${d.term ? d.term.tc : d.key}</div>
+          ${destLine ? `<div class="dir-dests">${destLine}</div>` : ""}
+        </div>`;
+      if (trains.length === 0) {
+        card.insertAdjacentHTML("beforeend", `<div class="empty">暫無班次資料（可能已收車）</div>`);
+      } else {
+        for (const t of trains) card.insertAdjacentHTML("beforeend", trainRow(t, lineByCode[state.line].color));
+      }
+      box.appendChild(card);
+    }
+    return any;
+  }
+
+  function setBanner(msg, url) {
+    const b = $("#banner");
+    if (!msg) { b.style.display = "none"; b.innerHTML = ""; return; }
+    b.style.display = "block";
+    b.innerHTML = url ? `⚠️ ${msg} <a href="${url}" target="_blank" rel="noopener">詳情</a>` : `⚠️ ${msg}`;
+  }
+  function setError(msg) {
+    const e = $("#error");
+    if (!msg) { e.style.display = "none"; return; }
+    e.style.display = "block"; e.textContent = msg;
+  }
+
+  /* ---------- data ---------- */
+  async function load() {
+    if (!state.line || !state.sta || state.busy) return;
+    state.busy = true;
+    $("#refreshBtn").disabled = true;
+    setError(""); setBanner("");
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const res = await fetch(`${API}?line=${state.line}&sta=${state.sta}&lang=TC`, { cache: "no-store", signal: ctrl.signal });
+      clearTimeout(to);
+      if (res.status === 429) { setError("查詢太頻繁（API 限流），請稍候再試。"); return; }
+      if (!res.ok) { setError(`API 錯誤（HTTP ${res.status}）`); return; }
+      const j = await res.json();
+      if (j.isdelay === "Y") setBanner("此線服務受阻，班次或受影響。");
+      if (j.status === 0) {
+        setBanner(j.message || "特別列車服務安排中。", j.url);
+        $("#dataTime").textContent = `資料時間 ${j.curr_time || "—"}`;
+        $("#dirs").innerHTML = `<div class="dir-card"><div class="empty">暫無班次資料</div></div>`;
+        return;
+      }
+      const node = j.data && j.data[`${state.line}-${state.sta}`];
+      const noData = !node || (!node.UP && !node.DOWN) || node.curr_time === "-";
+      if (noData) {
+        $("#dirs").innerHTML = `<div class="dir-card"><div class="empty">暫無班次資料</div></div>`;
+      } else {
+        renderTrains(node);
+      }
+      $("#dataTime").textContent = `資料時間 ${node?.curr_time || j.curr_time || "—"}`;
+    } catch (err) {
+      clearTimeout(to);
+      setError(err.name === "AbortError" ? "連線逾時，請再試。" : "連線失敗，請檢查網絡。");
+    } finally {
+      state.busy = false;
+      $("#refreshBtn").disabled = false;
+      state.left = REFRESH_SECS;
+    }
+  }
+
+  /* ---------- selection ---------- */
+  function selectLine(code, keepSta = false) {
+    state.line = code;
+    if (!keepSta || !stationByCode[code]?.[state.sta]) {
+      state.sta = null;
+      $("#result").hidden = true;
+    }
+    syncUrl(); save();
+    renderLines(); renderStations();
+    if (state.sta) showStation();
+  }
+  function selectStation(code) {
+    state.sta = code;
+    syncUrl(); save();
+    renderStations();
+    showStation();
+  }
+  function showStation() {
+    if (!state.line || !state.sta) return;
+    $("#result").hidden = false;
+    renderHeader();
+    $("#dirs").innerHTML = `<div class="dir-card"><div class="empty">載入中…</div></div>`;
+    load();
+  }
+  function syncUrl() {
+    const h = state.line ? `#line=${state.line}${state.sta ? `&sta=${state.sta}` : ""}` : "";
+    history.replaceState(null, "", h || location.pathname);
+  }
+  function save() {
+    try { localStorage.setItem("mtr-next-last", JSON.stringify({ line: state.line, sta: state.sta })); } catch {}
+  }
+  function restore() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    let line = p.get("line"), sta = p.get("sta");
+    if (!line) {
+      try { ({ line, sta } = JSON.parse(localStorage.getItem("mtr-next-last") || "{}")); } catch {}
+    }
+    if (line && lineByCode[line]) {
+      state.line = line;
+      if (sta && stationByCode[line]?.[sta]) state.sta = sta;
+    }
+  }
+
+  /* ---------- line/station directory (static content for readers & search engines) ---------- */
+  function renderDirectory() {
+    const box = $("#lineDir");
+    if (!box) return;
+    for (const l of MTR_LINES) {
+      const d = document.createElement("details");
+      const sts = (MTR_STATIONS[l.code] || []).map(s => `${s.tc} ${s.en}`).join("、");
+      d.innerHTML = `<summary>${l.tc} ${l.en}</summary><p>${sts}</p>`;
+      box.appendChild(d);
+    }
+  }
+
+  /* ---------- timers ---------- */
+  setInterval(() => {
+    $("#clock").textContent = fmtClock(new Date());
+    if (!state.line || !state.sta || state.busy || document.hidden) return;
+    state.left -= 1;
+    $("#refreshBtn").textContent = `🔄 更新（${state.left}s）`;
+    if (state.left <= 0) load();
+  }, 1000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && state.sta) load(); });
+  window.addEventListener("hashchange", () => {
+    const prev = `${state.line}-${state.sta}`;
+    restore();
+    if (`${state.line}-${state.sta}` === prev) return;
+    renderLines(); renderStations();
+    if (state.sta) showStation(); else $("#result").hidden = true;
+  });
+  $("#refreshBtn").onclick = () => load();
+
+  /* ---------- init ---------- */
+  restore();
+  renderLines();
+  renderStations();
+  renderDirectory();
+  if (state.sta) showStation();
+})();
+</script>
+</body>
+</html>

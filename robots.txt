@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://samuelchanx.github.io/mtr-next-train/sitemap.xml
